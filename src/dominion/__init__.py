@@ -3,4 +3,5 @@ Created on Nov 23, 2012
 
 @author: Nathaniel
 '''
-import orm
+from orm import *
+from dominion_exceptions import FullGameException

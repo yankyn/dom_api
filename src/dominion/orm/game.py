@@ -3,19 +3,16 @@ Created on Nov 23, 2012
 
 @author: Nathaniel
 '''
-from mongoengine.document import Document, EmbeddedDocument
-from mongoengine.fields import DateTimeField, ListField, ReferenceField, \
-    EmbeddedDocumentField, IntField, StringField, BooleanField
-from utils.consts import *
 from dominion.dominion_exceptions import FullGameException
+from dominion.orm.utils.autosave import AutoSaveDocument, save
+from mongoengine.document import EmbeddedDocument
+from mongoengine.fields import DateTimeField, ListField, ReferenceField, \
+    EmbeddedDocumentField, IntField, StringField, BooleanField, MapField, DictField
+from utils.consts import *
 import datetime
+from dominion.orm.utils.dev_utils import untested
 
-
-'''
-    --- Colleciton --- 
-'''
-    
-class GeneralRuleSet(Document):
+class GeneralRuleSet(AutoSaveDocument):
     '''
     A collection for all possible rule sets. 
     (Different expensions, or other rule variations we might want to try out)
@@ -25,47 +22,53 @@ class GeneralRuleSet(Document):
     
     name = StringField()
     number_of_piles = IntField()
-    variations = ListField(EmbeddedDocumentField(SPEC_RULESET_COLLECTION))
+    variations = ListField(ReferenceField(SPEC_RULESET_COLLECTION))
     cards = ListField(ReferenceField(CARD_COLLECTION))
     games = ListField(ReferenceField(GAME_COLLECTION))
     
-    def start_game(self, start_date):
+    @save
+    def create_game(self):
         '''
         Creates a game and connects it to this ruleset.
         '''
-        self.save()
-        game = Game(start_date=start_date, ruleset=self)
+        game = Game(ruleset=self)
         game.save()
         self.games.append(game)
-        self.save()
-        game.save()
         return game
+
+    #Untested    
+    @save
+    def create_specific_ruleset(self, player_number, cards=None):
+        spec = SpecificRuleSet(general_ruleset=self, player_number=player_number, cards=cards)
+        self.variations.append(spec)
+        return spec
     
-    def player_num_ruleset(self, number):
-        '''
-        Get the specific ruleset for the given number of players.
-        '''
-        return GeneralRuleSet.get(id=self.id, variations__player_number=number).only('variations')
-    
-class SpecificRuleSet(EmbeddedDocument):
+class SpecificRuleSet(AutoSaveDocument):
     '''
     A sub document for rule sets specific for the number of players.
     '''
     general_ruleset = ReferenceField(GENERAL_RULESET_COLLECTION)
     player_number = IntField()
-    cards = ListField(EmbeddedDocumentField(CARD_PILE_DOC))
+    cards = DictField() # Cards to numbers
     
-class Game(Document):
+class Game(AutoSaveDocument):
     '''
     An embedded document type for actual games.
 
     generally contains metadate + all information shared between all players.
     ''' 
     ruleset = ReferenceField(GENERAL_RULESET_COLLECTION)
-    start_date = DateTimeField(default=datetime.datetime.now())
+    spec_rulset = ReferenceField(SPEC_RULESET_COLLECTION)
+    created_date = DateTimeField(default=datetime.datetime.now())
+    start_date = DateTimeField()
     end_date = DateTimeField()
-    game_players = ListField(EmbeddedDocumentField(GAME_PlAYER_DOC))
-    card_piles = ListField(EmbeddedDocumentField(CARD_PILE_DOC))
+    
+    '''
+    We may want to make adding players and removing them asymchronous.
+    so we'll need another dictionary of "removed players"
+    '''
+    game_players = MapField(EmbeddedDocumentField(GAME_PlAYER_DOC))
+    
     trashed_cards = ListField(ReferenceField(CARD_COLLECTION))  
     draft_style = StringField()
     
@@ -74,47 +77,54 @@ class Game(Document):
         Tests whether there are game variations with a number of players 
         greater than the current number of players
         '''
-        return GeneralRuleSet.objects(id=self.ruleset.id,\
-                                       variations__player_number__gt=len(self.game_players))
+        return SpecificRuleSet.objects(general_ruleset=self.ruleset, player_number__gt=len(self.game_players))
         
     def can_start(self):
         '''
         Checks whether there is a variation for the current number of players.
         '''
-        return GeneralRuleSet.objects(id=self.ruleset.id, variations__player_number=len(self.game_players))
+        return SpecificRuleSet.objects(ruleset=self.ruleset, player_number=len(self.game_players))
     
+    @save
     def add_player(self, player):
         '''
         Adds a player to this game if possible. Else throws FullGameException.
         '''
+        if player._id in self.game_players:
+            return
         if not self.can_add_players():
             raise FullGameException(player=player, game=self)
-        
-        player.save()
-        self.save()
         player.games.append(self)
-        player.save()
+        self.game_players[player._id] = GamePlayer(player=player)
+    
+    @save
+    def remove_player(self, player):
+        '''
+        Removes a player from the game if possible.
+        '''
+        if player._id in self.game_players:
+            self.game_players.pop(player._id)
+        if self in player.games:
+            player.games.remove(self)
+     
+    def _get_player(self, player):
+        '''
+        Returns the GamePlayer mapped to the received player.
+        '''
+        return self.game_players[player._id]
         
-        gameplayer = GamePlayer(player=player)
-        self.game_players.append(gameplayer)
-        self.save()
+    def start(self):
+        '''
+        Initialized the game for all players.
+        '''
+        if not self.can_start(self):
+            raise Exception('Cannot start game!')
         
-        return gameplayer
-'''
-    --- Embedded Documents ---
-'''    
- 
-    
-class CardPile(EmbeddedDocument):
-    '''
-    Piles of cards. Generally only used in Game.
-    
-    NOTE: may want to just use DictField instead. This exists only the reinforce the schema. Not very mongo.
-    '''
-    
-    size = IntField()
-    card = ReferenceField(CARD_COLLECTION)
-            
+        spec_ruleset = SpecificRuleSet.objects(ruleset=self.ruleset, player_number=len(self.game_players))
+        self.spec_rulset = spec_ruleset
+        for player in self.game_players:
+            player.create_game(self)
+        
 class GamePlayer(EmbeddedDocument):
     '''
     The actual isntance of the player in the game.
@@ -137,14 +147,14 @@ class Turn(EmbeddedDocument):
     phase = StringField()
     is_current = BooleanField()
     
-    hand = ListField(EmbeddedDocumentField(HAND_CARD_DOC))
+    hand = DictField() # Cards to numbers
     played_actions = ListField(ReferenceField(CARD_COLLECTION))
     bought_cards = ListField(ReferenceField(CARD_COLLECTION))
     discarded_cards = ListField(ReferenceField(CARD_COLLECTION))
     trashed_cards = ListField(ReferenceField(CARD_COLLECTION))
     
 class HandCard(EmbeddedDocument):    
-    card = ReferenceField('Card')
+    card = ReferenceField(HAND_CARD_DOC)
     is_revealed = BooleanField(default=False)
     
 

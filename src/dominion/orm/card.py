@@ -4,9 +4,9 @@ Created on Nov 23, 2012
 @author: Nathaniel
 '''
 from mongoengine.fields import StringField, IntField, BooleanField
-from mongoengine.document import Document
+from dominion.orm.utils.autosave import AutoSaveDocument
     
-class Card(Document):
+class Card(AutoSaveDocument):
     
     name = StringField()
     cost = IntField()

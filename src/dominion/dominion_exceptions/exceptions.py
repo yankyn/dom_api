@@ -10,4 +10,5 @@ class FullGameException(Exception):
     def __init__(self, player, game, *args, **kwargs):
         self.player = player
         self.game = game
-        Exception.__init__('Cannot add any more players to this game!', *args, **kwargs)
+        Exception.__init__(self, 'Cannot add any more players to this game!', *args, **kwargs)
+    

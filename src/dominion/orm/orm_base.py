@@ -4,11 +4,14 @@ Created on Nov 24, 2012
 @author: Nathaniel
 '''
 class OrmBase(object):
+    '''
+    Base for all documents to inherit from.
+    '''
     
-    def __repr__(self):
-        string = '<%s' % self.__class__
-        if hasattr(self, 'reprs'):
-            for field in self.reprs:
-                string += ' %s: %s' % (str(field), str(self.reprs[field]))
-        string += '>'
+    @property
+    def _id(self):
+        '''
+        Stringwise ID.
+        '''
+        return str(self.id)
         

@@ -5,8 +5,8 @@ Created on Nov 30, 2012
 '''
 import pytest
 import server
-import zmq
 import time
+import zmq
 
 TEST_SUB_ADDRESS = "tcp://localhost:1234"
 TEST_PUB_ADDRESS = "tcp://*:1234"

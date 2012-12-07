@@ -19,6 +19,5 @@ Embedded Documents
 '''
 
 GAME_PlAYER_DOC = 'GamePlayer'
-CARD_PILE_DOC = 'CardPile'
 TURN_DOC = 'Turn'
 HAND_CARD_DOC = 'HandCard'
