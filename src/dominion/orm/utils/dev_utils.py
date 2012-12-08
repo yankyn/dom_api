@@ -14,3 +14,11 @@ def untested(func, *args, **kwargs):
     '''
     print >> sys.stderr, 'WARNING: You have called the untested method %s' % str(func)
     func(*args, **kwargs)
+
+@decorator
+def undocumented(func, *args, **kwargs):
+    '''
+    A decorator for notifing on use of undocumented methods.
+    '''
+    print 'INFO: You have called the undocumented method %s' % str(func)
+    func(*args, **kwargs)

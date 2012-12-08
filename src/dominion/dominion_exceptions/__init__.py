@@ -1,1 +1,1 @@
-from dominion.dominion_exceptions.exceptions import FullGameException
+from dominion.dominion_exceptions.exceptions import GameFullException

@@ -3,54 +3,24 @@ Created on Nov 23, 2012
 
 @author: Nathaniel
 '''
-from dominion.dominion_exceptions import FullGameException
+from dominion.dominion_exceptions import GameFullException
+from dominion.dominion_exceptions.exceptions import GameNotReadyException, \
+    DominionException
+from dominion.orm.card import Card
+from dominion.orm.rulesets import SpecificRuleSet, ConstantRules
 from dominion.orm.utils.autosave import AutoSaveDocument, save
+from dominion.orm.utils.consts import GENERAL_RULESET_COLLECTION, \
+    SPEC_RULESET_COLLECTION, GAME_PlAYER_DOC, CARD_COLLECTION, PLAYER_COLLECTION, \
+    TURN_DOC, HAND_CARD_DOC
+from dominion.orm.utils.dev_utils import untested, undocumented
+from dominion.orm.utils.game_consts import INACTIVE, HAND_SIZE
 from mongoengine.document import EmbeddedDocument
 from mongoengine.fields import DateTimeField, ListField, ReferenceField, \
     EmbeddedDocumentField, IntField, StringField, BooleanField, MapField, DictField
-from utils.consts import *
 import datetime
-from dominion.orm.utils.dev_utils import untested
+import random
 
-class GeneralRuleSet(AutoSaveDocument):
-    '''
-    A collection for all possible rule sets. 
-    (Different expensions, or other rule variations we might want to try out)
-    
-    This colleciton holds most of the game-play related information.
-    '''
-    
-    name = StringField()
-    number_of_piles = IntField()
-    variations = ListField(ReferenceField(SPEC_RULESET_COLLECTION))
-    cards = ListField(ReferenceField(CARD_COLLECTION))
-    games = ListField(ReferenceField(GAME_COLLECTION))
-    
-    @save
-    def create_game(self):
-        '''
-        Creates a game and connects it to this ruleset.
-        '''
-        game = Game(ruleset=self)
-        game.save()
-        self.games.append(game)
-        return game
 
-    #Untested    
-    @save
-    def create_specific_ruleset(self, player_number, cards=None):
-        spec = SpecificRuleSet(general_ruleset=self, player_number=player_number, cards=cards)
-        self.variations.append(spec)
-        return spec
-    
-class SpecificRuleSet(AutoSaveDocument):
-    '''
-    A sub document for rule sets specific for the number of players.
-    '''
-    general_ruleset = ReferenceField(GENERAL_RULESET_COLLECTION)
-    player_number = IntField()
-    cards = DictField() # Cards to numbers
-    
 class Game(AutoSaveDocument):
     '''
     An embedded document type for actual games.
@@ -70,32 +40,31 @@ class Game(AutoSaveDocument):
     game_players = MapField(EmbeddedDocumentField(GAME_PlAYER_DOC))
     
     trashed_cards = ListField(ReferenceField(CARD_COLLECTION))  
-    draft_style = StringField()
     
     def can_add_players(self):
         '''
         Tests whether there are game variations with a number of players 
         greater than the current number of players
         '''
-        return SpecificRuleSet.objects(general_ruleset=self.ruleset, player_number__gt=len(self.game_players))
+        return SpecificRuleSet.objects(general_ruleset=self.ruleset, player_number__gt=len(self.game_players)) #@UndefinedVariable
         
     def can_start(self):
         '''
         Checks whether there is a variation for the current number of players.
         '''
-        return SpecificRuleSet.objects(ruleset=self.ruleset, player_number=len(self.game_players))
+        return SpecificRuleSet.objects(general_ruleset=self.ruleset, player_number=len(self.game_players)) #@UndefinedVariable
     
     @save
     def add_player(self, player):
         '''
-        Adds a player to this game if possible. Else throws FullGameException.
+        Adds a player to this game if possible. Else throws GameFullException.
         '''
         if player._id in self.game_players:
             return
         if not self.can_add_players():
-            raise FullGameException(player=player, game=self)
+            raise GameFullException(player=player, game=self)
         player.games.append(self)
-        self.game_players[player._id] = GamePlayer(player=player)
+        self.game_players[player._id] = GamePlayer(player=player, game=self)
     
     @save
     def remove_player(self, player):
@@ -112,18 +81,38 @@ class Game(AutoSaveDocument):
         Returns the GamePlayer mapped to the received player.
         '''
         return self.game_players[player._id]
-        
+     
+    @untested   
     def start(self):
         '''
         Initialized the game for all players.
         '''
         if not self.can_start(self):
-            raise Exception('Cannot start game!')
+            raise GameNotReadyException(self)
         
-        spec_ruleset = SpecificRuleSet.objects(ruleset=self.ruleset, player_number=len(self.game_players))
+        spec_ruleset = SpecificRuleSet.objects(ruleset=self.ruleset, player_number=len(self.game_players)) #@UndefinedVariable
         self.spec_rulset = spec_ruleset
         for player in self.game_players:
-            player.create_game(self)
+            player.start_game(self)
+    
+    @untested
+    @undocumented
+    def get_starting_deck(self):
+        return self.ruleset.starting_deck
+    
+    @untested
+    @undocumented    
+    def start_turn(self, player):
+        money = self.ruleset.const_rules.money
+        actions = self.ruleset.const_rules.actions
+        buys = self.ruleset.const_rules.buys
+        hand_size = self.ruleset.const_rules.hand_size
+        
+        if not self.phase_order:
+            raise DominionException('No phase order found in constant configuration!')
+        phase = self.ruleset.const_rules.phase_order[0]
+        
+        player.craete_turn(money=money, actions=actions, buys=buys, hand_sizes=hand_size, phase=phase)
         
 class GamePlayer(EmbeddedDocument):
     '''
@@ -136,6 +125,24 @@ class GamePlayer(EmbeddedDocument):
     center = ListField(ReferenceField(CARD_COLLECTION))
     turns = ListField(EmbeddedDocumentField(TURN_DOC))
     
+    @untested
+    @undocumented
+    def start_game(self, game):
+        self.deck = game.get_starting_deck()
+        self.shuffle_deck()
+        self.turns.append(Turn())
+    
+    @untested
+    @undocumented
+    def shuffle_deck(self):    
+        self.deck = random.shuffle(self.deck)
+        
+    @untested
+    @undocumented
+    def create_turn(self, money, actions, buys, hand_sizes, phase):
+        turn = Turn(money=money, actions=actions, buys=buys, phase=phase)
+        self.turns.append(turn)
+        
 class Turn(EmbeddedDocument):
     
     start_date = DateTimeField(default=datetime.datetime.now())

@@ -3,7 +3,7 @@ Created on Nov 23, 2012
 
 @author: Nathaniel
 '''
-from dominion.dominion_exceptions import FullGameException
+from dominion.dominion_exceptions import GameFullException
 from dominion.orm import Player, GeneralRuleSet, Game, GamePlayer, \
     SpecificRuleSet
 from utils import dominion_fix, ruleset, ruleset_game #@UnusedImport
@@ -45,11 +45,12 @@ def test_can_add_player(dominion_fix, ruleset, ruleset_game):
     spec_ruleset.player_number = 2
     assert ruleset_game.can_add_players()
     
+    
 def test_add_player_exception(dominion_fix, ruleset, ruleset_game):
     '''
     Tests that adding a player to a game that cannot add players raises an exception.
     '''
-    with pytest.raises(FullGameException):
+    with pytest.raises(GameFullException):
         ruleset_game.add_player(Player())
         
 def test_add_and_get_player(dominion_fix, ruleset, ruleset_game):
@@ -67,7 +68,7 @@ def test_add_and_get_player(dominion_fix, ruleset, ruleset_game):
     assert player.games
     assert player.games[0] == game
     game.add_player(player) # Should not raise an exception
-    with pytest.raises(FullGameException):
+    with pytest.raises(GameFullException):
         game.add_player(Player(name = 'test_player_2'))
         
 def test_remove_player(dominion_fix, ruleset, ruleset_game):
@@ -112,4 +113,17 @@ def test_remove_player_corrupt(dominion_fix, ruleset, ruleset_game):
     assert not player.games
 
 def test_can_start(dominion_fix, ruleset, ruleset_game):
-
+    '''
+    Tests Game.can_start.
+    '''
+    sr = ruleset.create_specific_ruleset(1)
+    player = Player()
+    game = ruleset_game
+    
+    assert not game.can_start()
+    game.add_player(player)
+    assert game.can_start()
+    sr.player_number = 2
+    assert not game.can_start()
+    sr.player_number = 0
+    assert not game.can_start()
