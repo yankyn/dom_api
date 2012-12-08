@@ -6,7 +6,9 @@ Created on Nov 23, 2012
 from dominion.dominion_exceptions import GameFullException
 from dominion.orm import Player, GeneralRuleSet, Game, GamePlayer, \
     SpecificRuleSet
-from utils import dominion_fix, ruleset, ruleset_game #@UnusedImport
+from dominion.orm.utils.game_consts import COPPER, ESTATE
+from utils import dominion_fix, ruleset, ruleset_game, full_ruleset #@UnusedImport
+from utils import full_ruleset_game, full_ruleset_game_player #@UnusedImport
 import datetime
 import pytest
 
@@ -59,7 +61,7 @@ def test_add_and_get_player(dominion_fix, ruleset, ruleset_game):
     '''
     spec = ruleset.create_specific_ruleset(1)
     game = ruleset_game
-    player = Player(name = 'test_player_1')
+    player = Player(name='test_player_1')
     
     game.add_player(player)
     assert game.game_players
@@ -69,7 +71,7 @@ def test_add_and_get_player(dominion_fix, ruleset, ruleset_game):
     assert player.games[0] == game
     game.add_player(player) # Should not raise an exception
     with pytest.raises(GameFullException):
-        game.add_player(Player(name = 'test_player_2'))
+        game.add_player(Player(name='test_player_2'))
         
 def test_remove_player(dominion_fix, ruleset, ruleset_game):
     '''
@@ -104,7 +106,7 @@ def test_remove_player_corrupt(dominion_fix, ruleset, ruleset_game):
     assert not player.games
     
     # Corrupted game
-    game.game_players[player._id] = GamePlayer(player = player)
+    game.game_players[player._id] = GamePlayer(player=player)
     assert game.game_players
     assert game.game_players[player._id].player == player
     
@@ -127,3 +129,41 @@ def test_can_start(dominion_fix, ruleset, ruleset_game):
     assert not game.can_start()
     sr.player_number = 0
     assert not game.can_start()
+    
+def test_starting_deck(full_ruleset, full_ruleset_game):
+    '''
+    Tests starting deck creation.
+    '''
+    assert len(full_ruleset.starting_deck) == 10
+    assert full_ruleset_game.ruleset == full_ruleset
+    assert len(full_ruleset_game.get_starting_deck()) == 10
+    for card in full_ruleset_game.get_starting_deck():
+        assert (card.name == COPPER or card.name == ESTATE)
+    
+def copy_shuffled_deck(player):
+    '''
+    Shuffles the playe's deck and returns a copy of the old deck.
+    '''
+    deck = list(player.deck)
+    player.shuffle_deck()
+    print player.deck
+    return deck
+    
+def test_player_shuffle_deck(full_ruleset_game, full_ruleset_game_player):
+    player = full_ruleset_game_player
+    player.deck = list(full_ruleset_game.get_starting_deck())
+    
+    decks = list()
+    for i in range(10): #@UnusedVariable
+        decks.append(copy_shuffled_deck(player))
+    success = False
+    for deck1 in decks:
+        for deck2 in decks:
+            if deck1 != deck2:
+                success = True
+                break
+    assert success
+    
+    
+        
+

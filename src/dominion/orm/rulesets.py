@@ -3,15 +3,16 @@ Created on Dec 7, 2012
 
 @author: Nathaniel
 '''
-from dominion.orm.game import Game
+from dominion.dominion_exceptions.exceptions import DominionException
 from dominion.orm.utils.autosave import AutoSaveDocument, save
 from dominion.orm.utils.consts import SPEC_RULESET_COLLECTION, CARD_COLLECTION, \
-    GAME_COLLECTION, GENERAL_RULESET_COLLECTION
+    GAME_COLLECTION, GENERAL_RULESET_COLLECTION, CONSTANT_RULES_COLLECITON
 from dominion.orm.utils.dev_utils import untested, undocumented
 from dominion.orm.utils.game_consts import MONEY, BUYS, ACTIONS, HAND_SIZE, \
-    INACTIVE, ACTION, BUY, CLEANUP
+    INACTIVE, ACTION, BUY, CLEANUP, TREASURE, CURSE, VICTORY, ATTACK, REACTION
+from mongoengine.document import Document
 from mongoengine.fields import StringField, IntField, ListField, ReferenceField, \
-    DictField, EmbeddedDocumentField
+    DictField
     
 class GeneralRuleSet(AutoSaveDocument):
     '''
@@ -27,18 +28,20 @@ class GeneralRuleSet(AutoSaveDocument):
     cards = ListField(ReferenceField(CARD_COLLECTION))
     games = ListField(ReferenceField(GAME_COLLECTION))
     starting_deck = ListField(ReferenceField(CARD_COLLECTION))
-    const_rules = EmbeddedDocumentField()
+    const_rules = ReferenceField(CONSTANT_RULES_COLLECITON) #@UndefinedVariable
     
-    @undocumented
-    @untested
     def __init__(self, *args, **kwargs): 
-        if not ConstantRules.objects:
-            raise Exception('Default constant rules are not configured!')
+        '''
+        We default the constant rules to the (should be) only document in the collection.
+        '''
+        if not ConstantRules.objects: #@UndefinedVariable
+            raise DominionException('Default constant rules are not configured!')
+        super(GeneralRuleSet, self).__init__(*args, **kwargs)
         self.const_rules = ConstantRules.objects[0]
-        super(GeneralRuleSet, self).__init__(self, *args, **kwargs)
         
     @save
     def create_game(self):
+        from dominion.orm.game import Game
         '''
         Creates a game and connects it to this ruleset.
         '''
@@ -49,6 +52,9 @@ class GeneralRuleSet(AutoSaveDocument):
 
     @save
     def create_specific_ruleset(self, player_number, cards=None):
+        '''
+        Creates a specific rule set for this rule set with the given number of players and card set.
+        '''
         spec = SpecificRuleSet(general_ruleset=self, player_number=player_number, cards=cards)
         self.variations.append(spec)
         return spec
@@ -61,23 +67,32 @@ class SpecificRuleSet(AutoSaveDocument):
     player_number = IntField()
     cards = DictField() # Cards to numbers
     
-class ConstantRules(AutoSaveDocument):
+class ConstantRules(Document):
     '''
     A document to hold all rules that are currently not changeabe between rule-sets.
-    
-    Currently this holds quite a lot.
     '''
     
-    phase_order = ListField(StringField)
+    phase_order = ListField(StringField())
     money = IntField(default=MONEY)
     buys = IntField(default=BUYS)
     actions = IntField(default=ACTIONS)
     hand_size = IntField(default=HAND_SIZE)
+    card_types = ListField(StringField())
     
-    @untested
-    @undocumented
-    def __init__(self):
+    def validate(self):
+        '''
+        We want to validate that there is always only one document here. Otherwise the data should go inside
+        the general rule sets.
+        '''
+        
         if ConstantRules.objects:
-            raise Exception('Constant rules document already exists, please check your actions again')
+            raise DominionException('Constant rules document already exists, please check your actions again')
+        super(ConstantRules, self).validate()
+    
+    def __init__(self, *args, **kwargs):
+        '''
+        cTor
+        '''
+        super(ConstantRules, self).__init__(*args, **kwargs)
         self.phase_order = [INACTIVE, ACTION, BUY, CLEANUP]
-        super(ConstantRules, self).__init__(self)
+        self.card_types = [TREASURE, ACTION, CURSE, VICTORY, ATTACK, REACTION]

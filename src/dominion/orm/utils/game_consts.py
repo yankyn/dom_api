@@ -14,6 +14,23 @@ ACTION = 'Action'
 CLEANUP = 'Cleanup'
 
 '''
+Card types
+'''
+
+TREASURE = 'Treasure'
+ACTION = 'Action'
+CURSE = 'Curse'
+VICTORY = 'Victory'
+ATTACK = 'Action-Attack'
+REACTION = 'Action-Reaction'
+
+'''
+Card names
+'''
+COPPER = 'Copper'
+ESTATE = 'Estate'
+
+'''
 Real defaults
 '''
 BUYS = 1

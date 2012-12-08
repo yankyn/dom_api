@@ -13,6 +13,7 @@ SPEC_RULESET_COLLECTION = 'SpecificRuleSet'
 PLAYER_COLLECTION = 'Player'
 GAME_COLLECTION = 'Game'
 CARD_COLLECTION = 'Card'
+CONSTANT_RULES_COLLECITON = 'ConstantRules'
 
 '''
 Embedded Documents

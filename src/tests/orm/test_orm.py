@@ -8,10 +8,13 @@ Created on Nov 23, 2012
 
 @author: Nathaniel
 '''
-import datetime
+from dominion.dominion_exceptions.exceptions import DominionException
+from dominion.orm import Player, Game, GamePlayer
+from dominion.orm.rulesets import ConstantRules, SpecificRuleSet
 from utils import dominion_fix, ruleset #@UnusedImport
+import datetime
+import pytest
 
-from dominion.orm import Player, GeneralRuleSet, Game, GamePlayer, SpecificRuleSet
 
 def test_player(dominion_fix):
     '''
@@ -60,6 +63,23 @@ def test_game_player(dominion_fix):
     assert game.game_players
     assert game.game_players[str(player.id)].player == player
     assert Player.objects(games=game) #@UndefinedVariable
+    
+def test_constant_rules_validate(dominion_fix):
+    '''
+    Tests validating that there is only one constant rule_set
+    '''
+    const_rules = ConstantRules()
+    const_rules.validate()
+    const_rules.save()
+    
+    const_rules_2 = ConstantRules()
+    with pytest.raises(DominionException): 
+        const_rules_2.validate()
+    
+    with pytest.raises(DominionException): 
+        const_rules_2.save()  
+    
+    
     
     
        

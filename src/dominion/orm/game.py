@@ -95,9 +95,10 @@ class Game(AutoSaveDocument):
         for player in self.game_players:
             player.start_game(self)
     
-    @untested
-    @undocumented
     def get_starting_deck(self):
+        '''
+        Returns the ruleset's starting deck.
+        '''
         return self.ruleset.starting_deck
     
     @untested
@@ -126,14 +127,16 @@ class GamePlayer(EmbeddedDocument):
     turns = ListField(EmbeddedDocumentField(TURN_DOC))
     
     @untested
-    @undocumented
     def start_game(self, game):
+        '''
+        Initializes all data necessary to start playing.
+        '''
         self.deck = game.get_starting_deck()
         self.shuffle_deck()
         self.turns.append(Turn())
     
-    @untested
-    @undocumented
+#    @untested
+#    @undocumented
     def shuffle_deck(self):    
         self.deck = random.shuffle(self.deck)
         
