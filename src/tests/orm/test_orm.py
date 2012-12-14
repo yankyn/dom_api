@@ -11,6 +11,8 @@ Created on Nov 23, 2012
 from dominion.dominion_exceptions.exceptions import DominionException
 from dominion.orm import Player, Game, GamePlayer
 from dominion.orm.rulesets import ConstantRules, SpecificRuleSet
+from dominion.orm.utils.game_consts import MONEY, BUYS, ACTIONS, HAND_SIZE, \
+    INACTIVE, ACTION, BUY, CLEANUP, TREASURE, CURSE, VICTORY, ATTACK, REACTION
 from utils import dominion_fix, ruleset #@UnusedImport
 import datetime
 import pytest
@@ -79,8 +81,16 @@ def test_constant_rules_validate(dominion_fix):
     with pytest.raises(DominionException): 
         const_rules_2.save()  
     
-    
-    
-    
+def test_const_rules_default(dominion_fix):
+    '''
+    Tests that the default constant rules are fine.
+    '''
+    cr = ConstantRules()
+    assert cr.money == MONEY
+    assert cr. buys == BUYS
+    assert cr.actions == ACTIONS
+    assert cr.hand_size == HAND_SIZE
+    assert cr.phase_order == [INACTIVE, ACTION, BUY, CLEANUP]
+    assert cr.card_types == [TREASURE, ACTION, CURSE, VICTORY, ATTACK, REACTION]
        
 

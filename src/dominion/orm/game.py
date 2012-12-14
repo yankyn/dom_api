@@ -119,34 +119,100 @@ class GamePlayer(EmbeddedDocument):
     '''
     The actual isntance of the player in the game.
     '''
-    
+
     player = ReferenceField(PLAYER_COLLECTION)
+    
     deck = ListField(ReferenceField(CARD_COLLECTION))
     discard_pile = ListField(ReferenceField(CARD_COLLECTION))
     center = ListField(ReferenceField(CARD_COLLECTION))
+    hand = ListField(ReferenceField(CARD_COLLECTION))
+    revealed_cards = ListField(ReferenceField(CARD_COLLECTION))
+    
     turns = ListField(EmbeddedDocumentField(TURN_DOC))
     
-    @untested
-    def start_game(self, game):
-        '''
-        Initializes all data necessary to start playing.
-        '''
-        self.deck = game.get_starting_deck()
-        self.shuffle_deck()
-        self.turns.append(Turn())
-    
 #    @untested
-#    @undocumented
-    def shuffle_deck(self):    
-        self.deck = random.shuffle(self.deck)
+#    def _validate_card_list(self, cardlist):
+#        '''
+#        Validates that a list of cards is a list of cards
+#        '''
+#        for card in cardlist:
+#            assert isinstance(card, Card)
+#    
+#    @untested
+#    def validate(self):
+#        '''
+#        Validates that the player's state is valid.
+#        '''
+#        self._validate_card_list(self.deck)
+#        self._validate_card_list(self.discard_pile)
+#        self._validate_card_list(self.center)
+#        
+#        for card in self.hand:
+#            assert isinstance(card, HandCard)
+#            assert isinstance(self.hand[card], int)
         
+    
+    def set_deck(self, deck):
+        '''
+        Initializes the player's deck and shuffles it.
+        '''
+        self.deck = list(deck)
+        self.shuffle_deck()
+    
     @untested
-    @undocumented
-    def create_turn(self, money, actions, buys, hand_sizes, phase):
+    def _draw_from_deck(self, card_number):
+        '''
+        Draws the specified number of cards from the deck. 
+        Returns the number of cards failed o draw due to the deck not having enough cards.
+        '''
+        overflow = 0 if len(self.deck) >= card_number else card_number - len(self.deck)
+        deck_draw = card_number - overflow
+        
+        self.hand.extend(self.deck[-1 * deck_draw:])
+        self.deck = self.deck[:-1 * deck_draw]
+        
+        return overflow
+    
+    def shuffle_discard_pile(self):
+        '''
+        Shuffles the discard pile back into the deck. Assumes the deck is empty.
+        '''
+        if self.deck:
+            raise DominionException('Cannot shuffle discard pile into non-empty deck!')
+        
+        new_deck = list(self.discard_pile)
+        self.discard_pile = []
+        self.set_deck(new_deck)
+       
+    @untested
+    def draw_cards(self, card_number):
+        '''
+        Removes @card_number cards from the player's deck and appends them to his hand.
+        '''
+        overflow = self._draw_from_deck(card_number)
+        if overflow:
+            self.shuffle_discard_pile()
+            self._draw_from_deck(overflow)
+            
+        
+    def shuffle_deck(self):    
+        '''
+        Shuffles the player's deck.
+        '''
+        random.shuffle(self.deck)
+        
+    def create_turn(self, money, actions, buys, phase):
+        '''
+        Starts a turn with the given starting parameters.
+        '''
         turn = Turn(money=money, actions=actions, buys=buys, phase=phase)
         self.turns.append(turn)
+        return turn
         
 class Turn(EmbeddedDocument):
+    '''
+    A player's turn.
+    '''
     
     start_date = DateTimeField(default=datetime.datetime.now())
     end_date = DateTimeField()
@@ -157,15 +223,10 @@ class Turn(EmbeddedDocument):
     phase = StringField()
     is_current = BooleanField()
     
-    hand = DictField() # Cards to numbers
     played_actions = ListField(ReferenceField(CARD_COLLECTION))
     bought_cards = ListField(ReferenceField(CARD_COLLECTION))
     discarded_cards = ListField(ReferenceField(CARD_COLLECTION))
     trashed_cards = ListField(ReferenceField(CARD_COLLECTION))
-    
-class HandCard(EmbeddedDocument):    
-    card = ReferenceField(HAND_CARD_DOC)
-    is_revealed = BooleanField(default=False)
     
 
             

@@ -24,6 +24,7 @@ class Card(AutoSaveDocument):
     I guess at some point we may want to add an order field in case some effects are affected by action number etc...
     '''
     
+    
                 
             
             
