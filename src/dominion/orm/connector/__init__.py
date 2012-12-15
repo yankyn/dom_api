@@ -1,1 +1,1 @@
-from connector import connect
+from connector import connect, assure_connect, is_connected

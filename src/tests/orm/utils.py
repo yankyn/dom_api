@@ -4,10 +4,15 @@ Created on Dec 1, 2012
 @author: Nathaniel
 '''
 from decorator import decorator
+from dominion.controller.game_controller import create_player, \
+    create_game
+from dominion.controller.rules_controller import create_constant_rules, \
+    create_general_rule_set, create_specific_rule_set, create_card
 from dominion.orm import connect, GeneralRuleSet
 from dominion.orm.card import Card
+from dominion.orm.game import Game
 from dominion.orm.player import Player
-from dominion.orm.rulesets import ConstantRules
+from dominion.orm.rulesets import Rules
 from dominion.orm.utils.dev_utils import untested
 from dominion.orm.utils.game_consts import TREASURE, VICTORY, COPPER, ESTATE
 import pytest
@@ -30,7 +35,6 @@ def hook(self, func, monkeypatch):
         func(*args, **kwargs)
     monkeypatch.setattr(self, name, hooked_func)
     
-@untested
 def turn_card_dict_to_list(dictionary):
     '''
     Turns a dictionary of cards to numbers to a list of cards where each card's 
@@ -57,7 +61,9 @@ class HashableDict(dict):
         return self.__key() == other.__key()
     
 '''Params for card fixturs.'''
-piles_params = [HashableDict({COPPER : 7, ESTATE : 3}), HashableDict({})]
+piles_params = [HashableDict({COPPER : 7, ESTATE : 3})\
+                , HashableDict({})\
+                , HashableDict({COPPER : 2})]
     
 '''
 Fixtures
@@ -78,10 +84,9 @@ def ruleset(request, dominion_fix):
     '''
     Fixture for creating rulesets.
     '''
-    const_rules = ConstantRules()
-    const_rules.save()
+    create_constant_rules()
     
-    ruleset = GeneralRuleSet(name='test_ruleset')
+    ruleset = create_general_rule_set(name='test_ruleset')
     return ruleset
 
 @pytest.fixture
@@ -89,17 +94,17 @@ def ruleset_game(request, ruleset):
     '''
     Fixture for creating games with rulesets.
     '''
-    return ruleset.create_game()
+    return create_game(ruleset=ruleset)
 
-@pytest.fixture
+@pytest.fixture(params=[tuple([2, 3, 4])])
 def full_ruleset(request, cards, ruleset):
     '''
     A Fixture for creating rule_sets with content.
     '''
     ruleset.starting_deck = [Card.objects(name=COPPER)[0]] * 7 #@UndefinedVariable
-    ruleset.starting_deck.extend([Card.objects(name=ESTATE)[0]] * 3) #@UndefinedVariable
-    ruleset.save()
-    ruleset.create_specific_ruleset(player_number=1)
+    ruleset.starting_deck += [Card.objects(name=ESTATE)[0]] * 3 #@UndefinedVariable
+    for value in request.param:
+        srs = create_specific_rule_set(parent=ruleset, player_number=value)
     return ruleset
 
 @pytest.fixture
@@ -107,7 +112,7 @@ def full_ruleset_game(request, full_ruleset):
     '''
     A Fixture for creating rule_sets with content.
     '''
-    game = full_ruleset.create_game()
+    game = create_game(ruleset=full_ruleset)
     return game
 
 @pytest.fixture
@@ -115,19 +120,19 @@ def full_ruleset_game_player(full_ruleset_game):
     '''
     A fixture for creating a player in game with a full ruleset.
     '''
-    player = Player(name='test_player')
+    player = create_player(name='test_player')
     full_ruleset_game.add_player(player)
     return full_ruleset_game._get_player(player)
 
 @pytest.fixture
-def cards(request):
+def cards(request, dominion_fix):
     '''
     A fixture for creating example cards.
     '''
     if not Card.objects(name=COPPER): #@UndefinedVariable
-        Card(name=COPPER, cost=0, type=TREASURE, money=1)
+        create_card(name=COPPER, cost=0, type=TREASURE, money=1)
     if not Card.objects(name=ESTATE): #@UndefinedVariable
-        Card(name=ESTATE, cost=2, type=VICTORY, victory=1)
+        create_card(name=ESTATE, cost=2, type=VICTORY, victory=1)
 
 @pytest.fixture(params=piles_params)
 def deck(request, cards):

@@ -1,6 +1,7 @@
+from card import Card
+from dominion.orm.connector.connector import connect, is_connected
 from game import Game, Turn, GamePlayer
 from player import Player
-from card import Card
-from rulesets import GeneralRuleSet, SpecificRuleSet, ConstantRules
+from rulesets import GeneralRuleSet, SpecificRuleSet, Rules
 
-from dominion.orm.connector import connect
+

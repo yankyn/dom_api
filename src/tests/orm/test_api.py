@@ -4,14 +4,11 @@ Created on Nov 23, 2012
 @author: Nathaniel
 '''
 from dominion.dominion_exceptions import GameFullException
-from dominion.dominion_exceptions.exceptions import DominionException
-from dominion.orm import Player, GeneralRuleSet, Game, GamePlayer, \
-    SpecificRuleSet
-from dominion.orm.rulesets import ConstantRules
-from dominion.orm.utils.game_consts import COPPER, ESTATE, MONEY
-from tests.orm.utils import hook
+from dominion.dominion_exceptions.exceptions import DominionException, \
+    GameNotReadyException
+from dominion.orm import GamePlayer, SpecificRuleSet
+from dominion.orm.utils.game_consts import MONEY
 from utils import *
-import datetime
 import pytest
 
 def test_create_game(dominion_fix, ruleset, ruleset_game):
@@ -19,26 +16,22 @@ def test_create_game(dominion_fix, ruleset, ruleset_game):
     Tests GeneralRuleSet.star_game(self)
     '''
     assert Game.objects #@UndefinedVariable
-    assert ruleset.games[0].ruleset == ruleset
     assert Game.objects(ruleset=ruleset) #@UndefinedVariable
-    assert GeneralRuleSet.objects(games=ruleset_game) #@UndefinedVariable
     
 def test_create_specific_ruleset(dominion_fix, ruleset):
     '''
     Tests GeneralRuleSet.create_specific_ruleset(self)
     '''
-    spec = ruleset.create_specific_ruleset(player_number=0)
+    spec = create_specific_rule_set(parent=ruleset, player_number=0)
     
-    assert ruleset.variations
-    assert GeneralRuleSet.objects(variations=spec) #@UndefinedVariable
-    assert spec.general_ruleset == ruleset
-    assert SpecificRuleSet.objects(general_ruleset=ruleset) #@UndefinedVariable
+    assert spec.name == ruleset.name
+    assert SpecificRuleSet.objects(name=ruleset.name) #@UndefinedVariable
     
 def test_can_add_player(dominion_fix, ruleset, ruleset_game):
     '''
     Tests Game.can_add_players()
     '''
-    spec_ruleset = ruleset.create_specific_ruleset(0)
+    spec_ruleset = create_specific_rule_set(parent=ruleset, player_number=0)
     assert not ruleset_game.can_add_players()
     
     spec_ruleset.player_number = 1
@@ -53,15 +46,15 @@ def test_add_player_exception(dominion_fix, ruleset, ruleset_game):
     Tests that adding a player to a game that cannot add players raises an exception.
     '''
     with pytest.raises(GameFullException):
-        ruleset_game.add_player(Player())
+        ruleset_game.add_player(create_player())
         
 def test_add_and_get_player(dominion_fix, ruleset, ruleset_game):
     '''
     Tests adding and getting players from a game.
     '''
-    ruleset.create_specific_ruleset(1)
+    create_specific_rule_set(parent=ruleset, player_number=1)
     game = ruleset_game
-    player = Player(name='test_player_1')
+    player = create_player(name='test_player_1')
     
     game.add_player(player)
     assert game.game_players
@@ -71,14 +64,14 @@ def test_add_and_get_player(dominion_fix, ruleset, ruleset_game):
     assert player.games[0] == game
     game.add_player(player) # Should not raise an exception
     with pytest.raises(GameFullException):
-        game.add_player(Player(name='test_player_2'))
+        game.add_player(create_player(name='test_player_2'))
         
 def test_remove_player(dominion_fix, ruleset, ruleset_game):
     '''
     Tests removing existing and non-existing players.
     '''
-    ruleset.create_specific_ruleset(1)
-    player = Player()
+    create_specific_rule_set(parent=ruleset, player_number=1)
+    player = create_player()
     game = ruleset_game
     game.remove_player(player)
     game.add_player(player)
@@ -91,8 +84,8 @@ def test_remove_player_corrupt(dominion_fix, ruleset, ruleset_game):
     '''
     Test removing players when the game or the player documents are corrupted.
     '''
-    ruleset.create_specific_ruleset(2)
-    player = Player()
+    create_specific_rule_set(parent=ruleset, player_number=2)
+    player = create_player()
     game = ruleset_game
     
     # Corrupted player
@@ -118,8 +111,8 @@ def test_can_start(dominion_fix, ruleset, ruleset_game):
     '''
     Tests Game.can_start.
     '''
-    sr = ruleset.create_specific_ruleset(1)
-    player = Player()
+    sr = create_specific_rule_set(parent=ruleset, player_number=1)
+    player = create_player()
     game = ruleset_game
     
     assert not game.can_start()
@@ -146,7 +139,6 @@ def copy_shuffled_deck(player):
     '''
     deck = list(player.deck)
     player.shuffle_deck()
-    print player.deck
     return deck
 
 def test_player_shuffle_deck(full_ruleset_game, full_ruleset_game_player):
@@ -175,7 +167,7 @@ def test_player_create_turn(full_ruleset_game_player):
     '''
     Tests that player turn creation works as expected
     '''
-    cr = ConstantRules()
+    cr = Rules.objects(_is_constant=True)[0]
     player = full_ruleset_game_player
     player.create_turn(money=cr.money, buys=cr.buys, actions=cr.actions, phase=cr.phase_order[0])
     assert player.turns
@@ -225,8 +217,7 @@ def test_player_shuffle_discard_raises_exception(full_ruleset_game_player):
     player.discard_pile = [1]
     with pytest.raises(DominionException):
         player.shuffle_discard_pile()
-    
-    
+  
 def test_player_draw_cards(full_ruleset_game_player, deck, discard):
     '''
     Tests that drawing cards works as expected
@@ -238,9 +229,88 @@ def test_player_draw_cards(full_ruleset_game_player, deck, discard):
     player.discard_pile = discard
     
     player.draw_cards(hand_size)
-    assert (len(player.hand) == hand_size) or (len(player.hand) < hand_size and not player.deck and not player.discard_pile)
+    assert (len(player.hand) == hand_size) or (len(player.hand) < hand_size \
+                                               and not player.deck and not player.discard_pile)
     
     assert (len(player.deck) + len(player.discard_pile) == len(deck) + len(discard) - hand_size) \
         or (not player.deck and not player.discard_pile)
+        
+def test_draw_from_deck(full_ruleset_game_player, deck):
+    '''
+    Tests actually drawing the correct number of cards from the deck.
+    '''
+    hand_size = 5
+    player = full_ruleset_game_player
+    player.set_deck(deck)
     
+    overflow = player._draw_from_deck(5)
+    
+    assert (len(player.hand) == hand_size - overflow)
+    assert overflow == 0 or overflow == hand_size - len(deck)
+    
+def test_get_next_player(full_ruleset_game):
+    '''
+    Tests the cyclic get next player method.
+    '''
+    playernum = 3
+    
+    game = full_ruleset_game
+    players = [create_player() for i in range(playernum)]
+    game.player_order = players
+    
+    for i in range(100):
+        assert game.get_next_player() == players[i % playernum]
+        
+def test_start_turn(full_ruleset_game, full_ruleset_game_player):
+    '''
+    Tests game.start_turn(player)
+    '''
+    game_player = full_ruleset_game_player
+    player = game_player.player
+    game = full_ruleset_game
+    
+    turn = game.start_turn(player)
+    
+    assert turn.money == game.ruleset.money
+    assert turn.actions == game.ruleset.actions
+    assert turn.buys == game.ruleset.buys
+    assert turn.phase == game.ruleset.phase_order[0]
+    
+def test_start_game_no_player(full_ruleset_game):
+    '''
+    Tests that starting a turn with a non-mapped player raises the proper exception.
+    '''
+    with pytest.raises(DominionException):
+        full_ruleset_game.start_turn(create_player())
+        
+def test_start_game_not_ready(full_ruleset_game, full_ruleset_game_player):
+    '''
+    Test starting a game that does not have enough players.
+    '''
+    game = full_ruleset_game
+    with pytest.raises(GameNotReadyException):
+        game.start()
+        
+def test_start_game(full_ruleset_game, full_ruleset_game_player, monkeypatch):
+    '''
+    Tests initializing all players in the game.
+    '''
+    game = full_ruleset_game
+    player = full_ruleset_game_player
+    game.add_player(create_player())
+    hook(player, player.set_deck, monkeypatch)
+    assert not player.deck
+    assert not player.called_set_deck
+    assert not player.hand
+    game.start()
+    full_card_list = (player.deck + player.hand)
+    full_card_list.sort()
+    
+    game_starting_deck = list(game.ruleset.starting_deck)
+    game_starting_deck.sort()
+    
+    assert full_card_list == game_starting_deck
+    assert player.called_set_deck
+    assert len(player.hand) == 5
+    assert len(player.deck) == 5
     

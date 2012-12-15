@@ -20,7 +20,7 @@ class GameNotReadyException(Exception):
     '''
     def __init__(self, game, *args, **kwargs):
         self.game = game
-        message = 'Ruleset %s %s does not support %d players' \
+        message = 'Ruleset %s does not support %d players' \
              % (str(game.ruleset.name), len(game.game_players))
         Exception.__init__(self, message, *args, **kwargs)
         

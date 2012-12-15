@@ -1,4 +1,6 @@
 '''
+Utilities for the developer.
+
 Created on Dec 7, 2012
 
 @author: Nathaniel

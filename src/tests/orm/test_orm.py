@@ -8,9 +8,12 @@ Created on Nov 23, 2012
 
 @author: Nathaniel
 '''
+from dominion.controller.game_controller import create_player, create_game
+from dominion.controller.rules_controller import create_constant_rules, \
+    create_specific_rule_set
 from dominion.dominion_exceptions.exceptions import DominionException
 from dominion.orm import Player, Game, GamePlayer
-from dominion.orm.rulesets import ConstantRules, SpecificRuleSet
+from dominion.orm.rulesets import Rules, SpecificRuleSet
 from dominion.orm.utils.game_consts import MONEY, BUYS, ACTIONS, HAND_SIZE, \
     INACTIVE, ACTION, BUY, CLEANUP, TREASURE, CURSE, VICTORY, ATTACK, REACTION
 from utils import dominion_fix, ruleset #@UnusedImport
@@ -22,7 +25,7 @@ def test_player(dominion_fix):
     '''
     Tests creating a player and saving it to the DB.
     '''
-    Player(name='test_player')
+    create_player(name='test_player')
     assert Player.objects(name='test_player') #@UndefinedVariable
     
 def test_ruleset_game(dominion_fix, ruleset):
@@ -30,31 +33,28 @@ def test_ruleset_game(dominion_fix, ruleset):
     Tests creating a game and a ruleset and connecting them together.
     '''
     date = datetime.datetime.now()
-    game = Game(start_date=date)
-    ruleset.games.append(game)
+    game = create_game(ruleset=None, start_date=date)
     
     game.ruleset = ruleset
     
     assert game.ruleset.name == 'test_ruleset'
-    assert ruleset.games
     assert Game.objects(start_date=date) #@UndefinedVariable
     
 def test_spec_ruleset(dominion_fix, ruleset):
     '''
     Tests adding a variation to a ruleset and querrying by its number of players.
     '''
-    spec_ruleset = SpecificRuleSet(player_number=2)
-    ruleset.variations.append(spec_ruleset)
+    create_specific_rule_set(parent=ruleset, player_number=2)
     
     assert SpecificRuleSet.objects(player_number__gt=1)#@UndefinedVariable
-    assert ruleset.variations
+    assert SpecificRuleSet.objects(name=ruleset.name) #@UndefinedVariable
     
 def test_game_player(dominion_fix):
     '''
     Tests creating games and connecting them to players.
     '''
-    game = Game()
-    player = Player(name='test_player')
+    game = create_game(ruleset=None)
+    player = create_player(name='test_player')
 
     player.games.append(game)
     player.save()
@@ -70,22 +70,18 @@ def test_constant_rules_validate(dominion_fix):
     '''
     Tests validating that there is only one constant rule_set
     '''
-    const_rules = ConstantRules()
+    const_rules = create_constant_rules()
     const_rules.validate()
     const_rules.save()
     
-    const_rules_2 = ConstantRules()
     with pytest.raises(DominionException): 
-        const_rules_2.validate()
-    
-    with pytest.raises(DominionException): 
-        const_rules_2.save()  
+        const_rules_2 = create_constant_rules()
     
 def test_const_rules_default(dominion_fix):
     '''
     Tests that the default constant rules are fine.
     '''
-    cr = ConstantRules()
+    cr = create_constant_rules()
     assert cr.money == MONEY
     assert cr. buys == BUYS
     assert cr.actions == ACTIONS
