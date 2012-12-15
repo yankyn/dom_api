@@ -4,8 +4,7 @@ Created on Dec 1, 2012
 @author: Nathaniel
 '''
 from decorator import decorator
-from dominion.controller.game_controller import create_player, \
-    create_game
+from dominion.controller.game_controller import create_player, create_game
 from dominion.controller.rules_controller import create_constant_rules, \
     create_general_rule_set, create_specific_rule_set, create_card
 from dominion.orm import connect, GeneralRuleSet
@@ -14,7 +13,8 @@ from dominion.orm.game import Game
 from dominion.orm.player import Player
 from dominion.orm.rulesets import Rules
 from dominion.orm.utils.dev_utils import untested
-from dominion.orm.utils.game_consts import TREASURE, VICTORY, COPPER, ESTATE
+from dominion.orm.utils.game_consts import TREASURE, VICTORY, COPPER, ESTATE, \
+    ACTION
 import pytest
 
 TEST_DB = 'DOMINION_AUTO_TEST'
@@ -32,7 +32,7 @@ def hook(self, func, monkeypatch):
     setattr(self, new_field_name, 0)
     def hooked_func(*args, **kwargs):
         setattr(self, new_field_name, getattr(self, new_field_name) + 1)
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     monkeypatch.setattr(self, name, hooked_func)
     
 def turn_card_dict_to_list(dictionary):
@@ -153,5 +153,12 @@ def discard(request, cards):
     '''
     dictionary = request.param
     return turn_card_dict_to_list(dictionary)
-    
 
+@pytest.fixture
+def turn(request, full_ruleset_game_player):
+    '''
+    A fixture for creating different turn types for the player.
+    Does not currently create different types.
+    '''
+    player = full_ruleset_game_player
+    return player.create_turn(money=0, buys=0, actions=0, phase=ACTION)

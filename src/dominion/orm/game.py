@@ -18,7 +18,6 @@ from mongoengine.fields import DateTimeField, ListField, ReferenceField, \
 import datetime
 import random
 
-
 class Game(AutoSave, Document):
     '''
     An embedded document type for actual games.
@@ -127,7 +126,6 @@ class Game(AutoSave, Document):
         self.player_order.append(next_player)
         return next_player
         
-        
 class GamePlayer(EmbeddedDocument):
     '''
     The actual isntance of the player in the game.
@@ -181,7 +179,7 @@ class GamePlayer(EmbeddedDocument):
         Starts a turn with the given starting parameters.
         '''
         turn = Turn(money=money, actions=actions, buys=buys, phase=phase)
-        self.turns.append(turn)
+        self.turns = self.turns + [turn]
         return turn
         
     def _draw_from_deck(self, card_number):
@@ -197,15 +195,17 @@ class GamePlayer(EmbeddedDocument):
         
         return overflow
     
-    @untested
     def get_current_turn(self):
         '''
         Get the current turn.
         '''
-        return self.turns[-1]
+        if self.turns is None or len(self.turns) == 0:
+            return
+        turn = self.turns[-1]
+        return turn
     
     @untested
-    def change_current_turn_fields(self, turn , money, actions, buys):
+    def change_current_turn_fields(self, money, actions, buys):
         '''
         Sets the current turns values according to the provided ones.
         '''

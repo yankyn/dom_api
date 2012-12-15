@@ -7,7 +7,7 @@ from dominion.dominion_exceptions import GameFullException
 from dominion.dominion_exceptions.exceptions import DominionException, \
     GameNotReadyException
 from dominion.orm import GamePlayer, SpecificRuleSet
-from dominion.orm.utils.game_consts import MONEY
+from dominion.orm.utils.game_consts import MONEY, ACTION, CLEANUP
 from utils import *
 import pytest
 
@@ -313,4 +313,31 @@ def test_start_game(full_ruleset_game, full_ruleset_game_player, monkeypatch):
     assert player.called_set_deck
     assert len(player.hand) == 5
     assert len(player.deck) == 5
+    
+def test_get_current_turn(full_ruleset_game_player):
+    '''
+    Tests that getting the latest turn works correctly.
+    '''
+    player = full_ruleset_game_player
+    assert not player.get_current_turn()
+    player.create_turn(money=0, buys=0, actions=0, phase=ACTION)
+    assert player.get_current_turn()
+    player.create_turn(money=1, buys=0, actions=0, phase=ACTION)
+    assert player.get_current_turn().money == 1
+    
+def test_change_current_turn_fields(full_ruleset_game_player, turn, monkeypatch):
+    '''
+    A test for changing the current player turn.
+    '''
+    player = full_ruleset_game_player
+    hook(player, player.get_current_turn, monkeypatch)
+    assert turn
+    player.change_current_turn_fields(1, 1, 1)
+    assert player.get_current_turn().money != 0
+    assert player.called_get_current_turn
+    player.create_turn(money=2, actions=2, buys=2, phase=CLEANUP)
+    assert player.get_current_turn() != turn
+    player.change_current_turn_fields(-1, -1, -1)
+    assert player.get_current_turn().buys == 1
+    
     
